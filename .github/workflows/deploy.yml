@@ -39,20 +39,26 @@ jobs:
 
       - name: Preview changes
         uses: azure/cli@v2
+        env:
+          RESOURCE_GROUP_NAME: ${{ inputs.resource_group_name }}
+          LOCATION: ${{ inputs.location }}
         with:
           inlineScript: |
             az deployment sub what-if \
               --name github-${{ github.run_id }} \
-              --location ${{ inputs.location }} \
+              --location "$LOCATION" \
               --template-file bicep/main.bicep \
-              --parameters resourceGroupName=${{ inputs.resource_group_name }} location=${{ inputs.location }}
+              --parameters resourceGroupName="$RESOURCE_GROUP_NAME" location="$LOCATION"
 
       - name: Deploy approved changes
         uses: azure/cli@v2
+        env:
+          RESOURCE_GROUP_NAME: ${{ inputs.resource_group_name }}
+          LOCATION: ${{ inputs.location }}
         with:
           inlineScript: |
             az deployment sub create \
               --name github-${{ github.run_id }} \
-              --location ${{ inputs.location }} \
+              --location "$LOCATION" \
               --template-file bicep/main.bicep \
-              --parameters resourceGroupName=${{ inputs.resource_group_name }} location=${{ inputs.location }}
+              --parameters resourceGroupName="$RESOURCE_GROUP_NAME" location="$LOCATION"
