@@ -65,7 +65,8 @@ async def add_password(args: argparse.Namespace) -> None:
         if lookup.status_code == httpx.codes.NOT_FOUND:
             raise RuntimeError(
                 "Service principal was not found in the authenticated tenant. "
-                "Use its service principal object ID, not its application/client ID. "
+                "Use the Enterprise application service principal object ID, "
+                "not the App registration object ID or application/client ID. "
                 f"Supplied ID: {args.service_principal_id}"
             )
         try:
@@ -87,6 +88,13 @@ async def add_password(args: argparse.Namespace) -> None:
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as error:
+            if "CannotUpdateLockedServicePrincipalPropertyWithEnforcementScope" in response.text:
+                raise RuntimeError(
+                    "App instance property lock prevents passwordCredentials "
+                    "from being changed. In Entra admin center, open the app "
+                    "registration's Authentication settings and disable the "
+                    "property lock for this test, or use an unlocked test app."
+                ) from error
             raise RuntimeError(
                 f"Microsoft Graph could not add the password: {response.text}"
             ) from error
