@@ -1,0 +1,57 @@
+name: Validate Azure infrastructure
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bicep:
+    name: Validate Bicep
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate Bicep template
+        uses: azure/cli@v2
+        with:
+          inlineScript: az bicep build --file bicep/main.bicep
+
+  terraform:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: Check formatting
+        working-directory: terraform
+        run: terraform fmt -check -recursive
+      - name: Initialize without backend
+        working-directory: terraform
+        run: terraform init -backend=false -input=false
+      - name: Validate configuration
+        working-directory: terraform
+        run: terraform validate
+
+  security:
+    name: Scan infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Scan IaC for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          exit-code: 1
