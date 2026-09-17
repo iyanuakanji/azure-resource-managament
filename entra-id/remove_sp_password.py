@@ -33,13 +33,63 @@ async def remove_password(args: argparse.Namespace) -> None:
     credential = DefaultAzureCredential()
     access_token = credential.get_token(GRAPH_SCOPE).token
     headers = {"Authorization": f"Bearer {access_token}"}
-    url = f"{GRAPH_URL}/servicePrincipals/{args.service_principal_id}/removePassword"
+    service_principal_url = (
+        f"{GRAPH_URL}/servicePrincipals/{args.service_principal_id}"
+    )
+    url = f"{service_principal_url}/removePassword"
 
     async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(url, headers=headers, json={"keyId": args.key_id})
-        response.raise_for_status()
+        lookup = await client.get(
+            service_principal_url,
+            headers=headers,
+            params={"$select": "displayName,appId,passwordCredentials"},
+        )
+        if lookup.status_code == httpx.codes.NOT_FOUND:
+            raise RuntimeError(
+                "Service principal was not found in the authenticated tenant. "
+                "Use the Enterprise application service principal object ID."
+            )
+        lookup.raise_for_status()
 
-    print(f"Removed password credential {args.key_id}.")
+        target = lookup.json()
+        credential_ids = {
+            credential["keyId"]
+            for credential in target.get("passwordCredentials", [])
+        }
+        if args.key_id not in credential_ids:
+            raise RuntimeError(
+                f"Password credential {args.key_id} was not found on "
+                f"{target.get('displayName', 'the service principal')}."
+            )
+
+        response = await client.post(url, headers=headers, json={"keyId": args.key_id})
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            raise RuntimeError(
+                f"Microsoft Graph could not remove the password: {response.text}"
+            ) from error
+
+        for attempt in range(1, 7):
+            lookup = await client.get(
+                service_principal_url,
+                headers=headers,
+                params={"$select": "passwordCredentials"},
+            )
+            lookup.raise_for_status()
+            remaining_ids = {
+                credential["keyId"]
+                for credential in lookup.json().get("passwordCredentials", [])
+            }
+            if args.key_id not in remaining_ids:
+                print(f"Removed and verified password credential {args.key_id}.")
+                return
+            if attempt < 6:
+                await asyncio.sleep(5)
+
+    raise RuntimeError(
+        f"Password credential {args.key_id} still appears after 6 verification attempts."
+    )
 
 
 def main() -> None:

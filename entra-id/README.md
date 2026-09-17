@@ -25,6 +25,8 @@ Only disable this control for a test application. Keep property locks enabled fo
 
 Run it from **Actions > Add service principal password > Run workflow**. Supply the target service principal object ID, display name, and expiry period. Keep the returned `keyId` if you need to remove the credential later.
 
+To remove a credential, run **Actions > Remove service principal password > Run workflow** and supply the same service principal object ID plus the saved `keyId`. The removal script verifies that the credential exists before deletion and confirms that it disappears afterward, allowing for Graph replication delay.
+
 The target ID must be the service principal's **object ID** from **Enterprise applications**, not the App registration object ID or application/client ID. These are different objects. A Graph `404 Not Found` usually means the wrong object ID was supplied, the ID belongs to another tenant, or the object is not present in the tenant used by `AZURE_TENANT_ID`.
 
 For the `global_reader_sp` shown in the portal, first copy its **Application (client) ID** (`0e106392-b8df-4b3c-b595-a260ca68fbdc`), then resolve the Enterprise application object ID:
