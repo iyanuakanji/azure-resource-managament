@@ -1,0 +1,58 @@
+name: Deploy Azure infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      resource_group_name:
+        description: Resource group to create or update
+        required: true
+        type: string
+      location:
+        description: Azure region
+        required: true
+        default: eastus
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: azure-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: What-if and deploy Bicep
+    runs-on: ubuntu-latest
+    environment: azure-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Preview changes
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az deployment sub what-if \
+              --name github-${{ github.run_id }} \
+              --location ${{ inputs.location }} \
+              --template-file bicep/main.bicep \
+              --parameters resourceGroupName=${{ inputs.resource_group_name }} location=${{ inputs.location }}
+
+      - name: Deploy approved changes
+        uses: azure/cli@v2
+        with:
+          inlineScript: |
+            az deployment sub create \
+              --name github-${{ github.run_id }} \
+              --location ${{ inputs.location }} \
+              --template-file bicep/main.bicep \
+              --parameters resourceGroupName=${{ inputs.resource_group_name }} location=${{ inputs.location }}
