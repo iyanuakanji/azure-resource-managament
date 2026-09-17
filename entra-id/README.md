@@ -19,4 +19,6 @@ The automation service principal needs Microsoft Graph application permission `A
 
 Run it from **Actions > Add service principal password > Run workflow**. Supply the target service principal object ID, display name, and expiry period. Keep the returned `keyId` if you need to remove the credential later.
 
+The target ID must be the service principal's **object ID** from **Enterprise applications**, not the application's client ID from **App registrations**. A Graph `404 Not Found` usually means the ID is a client ID, belongs to another tenant, or identifies an object that is not present in the tenant used by `AZURE_TENANT_ID`.
+
 This client-secret method is convenient for testing but requires secret rotation. Do not use it for production when GitHub OIDC or another secretless option is available.

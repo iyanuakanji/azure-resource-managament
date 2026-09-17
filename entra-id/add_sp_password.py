@@ -51,11 +51,45 @@ async def add_password(args: argparse.Namespace) -> None:
         }
     }
     headers = {"Authorization": f"Bearer {access_token}"}
-    url = f"{GRAPH_URL}/servicePrincipals/{args.service_principal_id}/addPassword"
+    service_principal_url = (
+        f"{GRAPH_URL}/servicePrincipals/{args.service_principal_id}"
+    )
+    url = f"{service_principal_url}/addPassword"
 
     async with httpx.AsyncClient(timeout=30) as client:
+        lookup = await client.get(
+            service_principal_url,
+            headers=headers,
+            params={"$select": "id,appId,displayName"},
+        )
+        if lookup.status_code == httpx.codes.NOT_FOUND:
+            raise RuntimeError(
+                "Service principal was not found in the authenticated tenant. "
+                "Use its service principal object ID, not its application/client ID. "
+                f"Supplied ID: {args.service_principal_id}"
+            )
+        try:
+            lookup.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            raise RuntimeError(
+                f"Microsoft Graph could not read the service principal: "
+                f"{lookup.text}"
+            ) from error
+
+        target = lookup.json()
+        print(
+            f"Target service principal: {target.get('displayName', '<unnamed>')} "
+            f"(appId: {target.get('appId', '<unknown>')})",
+            file=sys.stderr,
+        )
+
         response = await client.post(url, headers=headers, json=payload)
-        response.raise_for_status()
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as error:
+            raise RuntimeError(
+                f"Microsoft Graph could not add the password: {response.text}"
+            ) from error
 
     result = response.json()
     print("Store secretText securely now; Microsoft Graph will not return it again.", file=sys.stderr)
